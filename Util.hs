@@ -1,15 +1,32 @@
+-- |
 -- Module      :  Util
 -- Description :  Miscleaneous functions
 -- Copyright   :  (c) Froxwin 2023
-
+-- License     : MIT
 module Util where
 
+import           Data.Char                      ( digitToInt
+                                                , isSpace
+                                                , toLower
+                                                , toUpper
+                                                )
 import           Data.List                      ( group
+                                                , intercalate
                                                 , sort
+                                                )
+import           Data.Map                       ( Map
+                                                , fromList
+                                                )
+import           Data.Text                      ( Text
+                                                , pack
+                                                , replace
+                                                , splitOn
+                                                , unpack
                                                 )
 import           Data.Tree                      ( Tree(Node)
                                                 , drawTree
                                                 )
+import           Text.Printf
 
 -- | The 'primes' function returns prime numbers up to the provided number
 primes :: Integral a => a -> [a]
@@ -43,11 +60,10 @@ primeFactors' m = filter ((== 2) . length . factors) $ factors m
 fizzBuzz :: [String]
 fizzBuzz = map check [1 .. 100]
  where
-  check x | isDiv 15  = "FizzBuzz"
-          | isDiv 3   = "Fizz"
-          | isDiv 5   = "Buzz"
-          | otherwise = show x
-    where isDiv = (== 0) . mod x
+  check x | mod x 15 == 0 = "FizzBuzz"
+          | mod x 3 == 0  = "Fizz"
+          | mod x 5 == 0  = "Buzz"
+          | otherwise     = show x
 
 -- | The 'pythagoreanTriplets' function returns 'x' number of pythagorean
 --  triplets.
@@ -75,6 +91,14 @@ fibonacci x = (x - 2) ∈ [0, 1]
 --  Implemented using an recursive helper function.
 fibonacci' :: Num a => Int -> [a]
 fibonacci' n = take n (0 <~> 1) where a <~> b = a : b <~> (a + b)
+
+fib :: (Eq t, Num t, Num a) => t -> a
+fib 1 = 1
+fib 2 = 1
+fib x = fib (x - 1) + fib (x - 2)
+
+fibs :: (Eq a, Num a, Num b, Enum a) => a -> [b]
+fibs n = map fib [1 .. n]
 
 -- | The 'factorial' function returns the factorial of a number.
 --
@@ -191,10 +215,10 @@ cross = (*)
 
 dot :: Vector3 -> Vector3 -> Double
 Vector3 (x1, y1, z1) `dot` Vector3 (x2, y2, z2) =
-  (x1 * x2) + (y1 * y2) + (z1 * z2)
+  x1 * x2 + y1 * y2 + z1 * z2
 
 vmag :: Vector3 -> Double
-vmag (Vector3 (x1, y1, z1)) = sqrt ((x1 ^ 2) + (y1 ^ 2) + (z1 ^ 2))
+vmag (Vector3 (x1, y1, z1)) = sqrt (x1 ^ 2 + y1 ^ 2 + z1 ^ 2)
 
 (*:) :: Vector3 -> Double -> Vector3
 Vector3 (x1, y1, z1) *: k = Vector3 (x1 * k, y1 * k, z1 * k)
@@ -212,7 +236,7 @@ disjoiuntUnion :: Ord b => [b] -> [b] -> [b]
 x `disjoiuntUnion` y =
   filter (\a -> a `notElem` (x `intersection` y)) (x `union` y)
 
-reduceFrac :: (Show a, Integral a) => a -> a -> [Char]
+reduceFrac :: (Show a, Integral a) => a -> a -> String
 reduceFrac n d = concat [show $ div n k, " / ", show $ div d k]
  where
   k = last $ [ x | x <- [1 .. max n d], n `mod` x == 0, d `mod` x == 0 ]
@@ -264,4 +288,278 @@ deviation xs = sum (map (abs . subtract mean) xs) / n
   mean = sum xs / n
   n    = fromIntegral $ length xs
 
+isLeapYear :: Integer -> Bool
+isLeapYear x = x `mod` 4 == 0 && (x `mod` 100 /= 0 || x `mod` 400 == 0)
 
+data Planet = Mercury
+            | Venus
+            | Earth
+            | Mars
+            | Jupiter
+            | Saturn
+            | Uranus
+            | Neptune
+
+ageOn :: Planet -> Float -> Float
+ageOn planet seconds = seconds / 3.15576e7 * scale
+ where
+  scale = case planet of
+    Mercury -> 0.2408467
+    Venus   -> 0.61519726
+    Earth   -> 1.0
+    Mars    -> 1.8808158
+    Jupiter -> 11.862615
+    Saturn  -> 29.447498
+    Uranus  -> 84.016846
+    Neptune -> 164.79132
+
+unique :: Eq a => [a] -> [a]
+unique []       = []
+unique (x : xs) = x : unique (filter (x /=) xs)
+
+isPangram :: String -> Bool
+isPangram =
+  (== 26) . length . unique . filter (`elem` ['a' .. 'z']) . map toLower
+
+trim :: String -> String
+trim = f . f where f = reverse . dropWhile isSpace
+
+responseFor :: String -> String
+responseFor "" = "Fine. Be that way!"
+responseFor xs
+  | all (`elem` [' ', '\t', '\n', '\r']) xs
+  = "Fine. Be that way!"
+  | last (trim xs) == '?' && all (`notElem` ['a' .. 'z']) xs && (/= 0)
+    (length $ filter (`elem` ['A' .. 'Z']) xs)
+  = "Calm down, I know what I'm doing!"
+  | last (trim xs) == '?'
+  = "Sure."
+  | all (`notElem` ['a' .. 'z']) xs
+    && (/= 0) (length $ filter (`elem` ['A' .. 'Z']) xs)
+  = "Whoa, chill out!"
+  | otherwise
+  = "Whatever."
+
+collatz :: Integer -> Maybe Integer
+collatz n | n <= 0    = Nothing
+          | otherwise = Just $ count 0 n
+ where
+  count x n | n == 1    = x
+            | even n    = count (x + 1) $ n `div` 2
+            | otherwise = count (x + 1) $ n * 3 + 1
+
+toRNA :: String -> Either Char String
+toRNA xs | all (`elem` "GCTA") xs = Right $ map getComplement xs
+         | otherwise = Left $ head $ filter (`notElem` "GCTA") xs
+ where
+  getComplement x = case x of
+    'G' -> 'C'
+    'C' -> 'G'
+    'T' -> 'A'
+    'A' -> 'U'
+
+data Nucleotide = A | C | G | T deriving (Eq, Ord, Show)
+
+nucleotideCounts :: String -> Either String (Map Nucleotide Int)
+nucleotideCounts xs
+  | all (`elem` "GCTA") xs = Right $ fromList
+    [(A, count 'A'), (C, count 'C'), (G, count 'G'), (T, count 'T')]
+  | otherwise = Left $ error "Bruh"
+  where count x = length $ filter (== x) xs
+
+sumOfMultiples :: [Integer] -> Integer -> Integer
+sumOfMultiples factors limit = sum $ unique $ concat
+  [ take (fromIntegral $ limit - 1) [x, x + x .. limit - 1]
+  | x <- factors
+  ]
+ where
+  unique []       = []
+  unique (x : xs) = x : unique (filter (x /=) xs)
+
+square :: Integer -> Maybe Integer
+square n | n `elem` [1 .. 64] = Just $ 2 ^ (n - 1)
+         | otherwise          = Nothing
+
+total :: Integer
+total = sum $ map ((\(Just x) -> x) . square) [1 .. 64]
+
+abbreviate :: Text -> Text
+abbreviate xs = pack $ map toUpper $ concat
+  [ (if all (`notElem` ['a' .. 'z']) word || all (`elem` ['a' .. 'z']) word
+      then [head word]
+      else filter (`elem` ['A' .. 'Z']) word
+    )
+  | word <- words
+  , word /= ""
+  ]
+ where
+  lookup = ['-', '_']
+  words  = map unpack $ splitOn (pack " ") $ pack
+    [ if x `elem` lookup then ' ' else x | x <- unpack xs ]
+
+discard :: (a -> Bool) -> [a] -> [a]
+discard p xs = [ x | x <- xs, not $ p x ]
+
+keep :: (a -> Bool) -> [a] -> [a]
+keep p xs = [ x | x <- xs, p x ]
+
+anagramsFor :: String -> [String] -> [String]
+anagramsFor xs xss =
+  [ x | x <- xss, sort (t x) == sort (t xs), t x /= t xs ]
+  where t = map toLower
+
+data Clock = Clock Int Int Int
+  deriving Eq
+
+instance Show Clock where
+  show :: Clock -> String
+  show (Clock h m s) = intercalate ":"
+    $ map ((\x -> replicate (2 - length x) '0' ++ x) . show) [h, m, s]
+
+fromInt :: Int -> Int -> Int -> Clock
+fromInt h m s = Clock ((h + m `div` 60) `mod` 24)
+                      ((m + s `div` 60) `mod` 60)
+                      (s `mod` 60)
+
+addDelta :: Int -> Int -> Int -> Clock -> Clock
+addDelta dh dm ds (Clock h m s) = fromInt (h + dh) (m + dm) (s + ds)
+
+splitN :: Int -> [a] -> [[a]]
+splitN _ [] = []
+splitN n ys =
+  take n ys : splitN n (reverse $ take (length ys - n) $ reverse ys)
+
+encode :: String -> String
+encode xs = intercalate "\n" $ splitN m $ take0
+  (map (\x -> x ++ replicate (n - length x) ' ') $ splitN n normalized)
+  n
+ where
+  take0 x i = if i == 0 then [] else map (!! (n - i)) x ++ take0 x (i - 1)
+  normalized =
+    filter (`elem` ['a' .. 'z'] ++ ['0' .. '9']) $ map toLower xs
+  (m, n) | t ^ 2 >= length normalized = (t, t)
+         | t ^ 2 < length normalized  = (t, t + 1)
+    where t = round $ sqrt $ fromIntegral $ length normalized
+
+isValid :: String -> Bool
+isValid n | length (filter (`elem` ['0' .. '9']) n) < 2 = False
+          | all (`notElem` ' ' : ['0' .. '9']) n = False
+          | otherwise                            = check n
+ where
+  check m = sumX (reverse $ filter (`elem` ['0' .. '9']) m) `mod` 10 == 0
+  sumX xs =
+    sum
+      $  map digitToInt oddElems
+      ++ map ((\x -> if x > 9 then x - 9 else x) . (* 2) . digitToInt)
+             evenElems
+   where
+    oddElems  = map (xs !!) [0, 2 .. length xs - 1]
+    evenElems = map (xs !!) [1, 3 .. length xs - 1]
+
+nth :: Int -> Maybe Integer
+nth n | n == 0    = Nothing
+      | otherwise = Just $ (!! pred n) $ map fromIntegral $ sieve $ n * 20
+ where
+  sieve n = del 0 [2 .. n]
+   where
+    del i xs
+      | i ^ 2 > last xs = xs
+      | otherwise = del (i + 1)
+      $ filter (\x -> x == xs !! i || x `mod` xs !! i /= 0) xs
+
+-- splitN :: Int -> [a] -> [[a]]
+-- splitN _ [] = []
+-- splitN n ys =
+--   take n ys : splitN n (reverse $ take (length ys - n) $ reverse ys)
+
+
+-- number :: String -> Maybe String
+number :: String -> Maybe String
+number xs | length x == 11 && head x == '1' = Just x
+          | -- tail x
+            length x == 10                  = Just x
+          | otherwise                       = Nothing
+  where x = filter (`elem` ['0' .. '9']) xs
+
+data Classification = Deficient | Perfect | Abundant deriving (Eq, Show)
+
+classify :: Int -> Maybe Classification
+classify n | n < 1  = Nothing
+           | s == n = Just Perfect
+           | s > n  = Just Abundant
+           | s < n  = Just Deficient
+  where s = sum $ init [ x | x <- [1 .. n], n `mod` x == 0 ]
+
+pythagoreanTriplets'' n =
+  [ (a, b, c)
+  | (a, b, c) <-
+    [ (a, b, c)
+    | c <- [1 .. n]
+    , b <- [1 .. c]
+    , a <- [1 .. b]
+    , a ^ 2 + b ^ 2 == c ^ 2
+    ]
+  , a + b + c == n
+  ]
+
+pallete =
+  [ (46 , 52 , 64)
+  , (59 , 66 , 82)
+  , (67 , 76 , 94)
+  , (76 , 86 , 106)
+  , (216, 222, 233)
+  , (229, 233, 240)
+  , (236, 239, 244)
+  , (143, 188, 187)
+  , (136, 192, 208)
+  , (129, 161, 193)
+  , (94 , 129, 172)
+  , (191, 97 , 106)
+  , (208, 135, 112)
+  , (235, 203, 139)
+  , (163, 190, 140)
+  , (180, 142, 173)
+  ]
+
+
+ctp =
+  [ (245, 224, 220)
+  , (242, 205, 205)
+  , (245, 194, 231)
+  , (203, 166, 247)
+  , (243, 139, 168)
+  , (235, 160, 172)
+  , (250, 179, 135)
+  , (249, 226, 175)
+  , (166, 227, 161)
+  , (148, 226, 213)
+  , (137, 220, 235)
+  , (116, 199, 236)
+  , (137, 180, 250)
+  , (180, 190, 254)
+  , (205, 214, 244)
+  , (186, 194, 222)
+  , (166, 173, 200)
+  , (147, 153, 178)
+  , (127, 132, 156)
+  , (108, 112, 134)
+  , (88 , 91 , 112)
+  , (69 , 71 , 90)
+  , (49 , 50 , 68)
+  , (30 , 30 , 46)
+  , (24 , 24 , 37)
+  , (17 , 17 , 27)
+  ]
+
+
+palletize :: Integral a => (a, a, a) -> [(a, a, a)] -> (a, a, a)
+palletize (xr, xg, xb) = mini . map
+  (\(yr, yg, yb) ->
+    ( (yr, yg, yb)
+    , sqrt
+      (fromIntegral ((yr - xr) ^ 2 + (yg - xg) ^ 2 + (yb - xb) ^ 2) / 3)
+    )
+  )
+ where
+  mini xs = fst $ head $ filter ((==) min . snd) xs
+    where min = minimum $ map snd xs
