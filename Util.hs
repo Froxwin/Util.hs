@@ -563,3 +563,69 @@ palletize (xr, xg, xb) = mini . map
  where
   mini xs = fst $ head $ filter ((==) min . snd) xs
     where min = minimum $ map snd xs
+
+plus :: (Eq t1, Num t1, Enum t2, Enum t1) => t2 -> t1 -> t2
+x `plus` 0 = x
+x `plus` y = succ (x `plus` pred y)
+
+times
+  :: (Num t1, Num t2, Eq t1, Eq t2, Enum t2, Enum t1) => t2 -> t1 -> t2
+x `times` 0 = 0
+x `times` y = x `plus` (x `times` pred y)
+
+type Matrix a = [[a]]
+
+(|+|) :: Num a => Matrix a -> Matrix a -> Matrix a
+a |+| b = map (\x -> zipWith (+) (a !! x) (b !! x)) [0 .. length a - 1]
+
+(|*|) :: Num a => a -> Matrix a -> Matrix a
+k |*| a = map (map (k *)) a
+
+(|-|) :: Num a => Matrix a -> Matrix a -> Matrix a
+a |-| b = a |+| ((-1) |*| b)
+
+(|.|) :: Num a => Matrix a -> Matrix a -> Matrix a
+a |.| b = map
+  (\x ->
+    map (sum . zipWith (*) (a !! x) . (v !!)) [0 .. length (head b) - 1]
+  )
+  [0 .. length a - 1]
+  where v = transpose b
+
+transpose :: Num a => Matrix a -> Matrix a
+transpose a = map (\x -> map (\y -> a !! y !! x) [0 .. m - 1])
+                  [0 .. n - 1]
+  where (m, n) = order a
+
+order :: Num a => Matrix a -> (Int, Int)
+order a = (length a, length $ head a)
+
+trace :: Num a => Matrix a -> a
+trace a = sum $ map (\x -> a !! x !! x) [0 .. length a - 1]
+
+minor :: Num c => Int -> Int -> Matrix c -> c
+minor m n = det . map (remove n) . remove m
+  where remove n xs = let (as, bs) = splitAt n xs in as ++ tail bs
+
+cofactor :: Num c => Int -> Int -> Matrix c -> c
+cofactor m n = (*) ((-1) ^ (m + n)) . minor m n
+
+det :: Num a => Matrix a -> a
+det a
+  | length a == 1 = head $ head a
+  | otherwise = sum $ map (\x -> (head a !! x) * cofactor 0 x a)
+                          [0 .. length (head a) - 1]
+
+adj :: Num a => Matrix a -> Matrix a
+adj a = transpose $ map
+  (\x -> map (\y -> cofactor x y a) [0 .. length (a !! x) - 1])
+  [0 .. length a - 1]
+
+inverse :: Fractional a => Matrix a -> Matrix a
+inverse a = (1 / det a) |*| adj a
+
+a :: Matrix Integer
+a = [[1, 2, 3, 8], [3, 4, 0, 2], [5, 6, 1, 3], [9, 5, 3, 4]]
+
+rotate :: Floating a => a -> Matrix a -> Matrix a
+rotate theta v = [[cos theta, -sin theta], [sin theta, cos theta]] |.| v
